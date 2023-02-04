@@ -29,10 +29,20 @@ def getCardsNumbers():
             }
         session = requests.Session()
         session.post(login_url, data=payload)
+        # Step 2: Get RAW data
 
-        # Step 2: Download the excel file
-        file_url = 'https://fleetcard.vivoenergy.com/WP/v1/card-list?refresh=true&itemsPerPage=0&currentPage=0&idCardStatus=&purseList=&query=&depAndCC='
-        data = (session.get(file_url)).json()
+        file_url = 'https://fleetcard.vivoenergy.com/WP/v1/card-list'
+        query_params = {
+            "refresh": "true",
+            "itemsPerPage": 0,
+            "currentPage": 0,
+            "idCardStatus": "",
+            "purseList": "",
+            "query": "",
+            "depAndCC": ""
+        }
+
+        data = (session.get(file_url,params=query_params)).json()
         # Extract the relevant data from the dictionary object
         rows = [[data['cardNumber'], data['holder']['name'],data['holder']['carPlateNumber']] for data in data['cardList']]
 
@@ -60,8 +70,23 @@ def downloadAllData():
 
         # Step 2: Download the excel file
         print(f'Download for Account {index+1} Started.') 
-        file_url = f'https://fleetcard.vivoenergy.com/WP/v1/reports/card-purchase-list?refresh=true&itemsPerPage=25&currentPage=1&startDate={start_date}&endDate={end_date}&isProcessing=1&cardList=&service=&pos=&invoiceNumber=&format=CSV&additionalColumns=consumption,holder,plate-nr'
-        response=session.get(file_url)
+        file_url = 'https://fleetcard.vivoenergy.com/WP/v1/reports/card-purchase-list'
+        query_params = {
+            "refresh": "true",
+            "itemsPerPage": 25,
+            "currentPage": 1,
+            "startDate": start_date,
+            "endDate": end_date,
+            "isProcessing": 1,
+            "cardList": "",
+            "service": "",
+            "pos": "",
+            "invoiceNumber": "",
+            "format": "CSV",
+            "additionalColumns": "consumption,holder,plate-nr"
+        }
+
+        response=session.get(file_url, params=unquote(urlencode(query_params)))
         with open('downloadingData.csv', 'a') as f:
             f.write(response.text)
         print(f'Download for Account {index+1} is done')    
@@ -87,8 +112,22 @@ def downloadStcData():
 
     # Step 2: Download the excel file
     print('STC Cards Purchases Data Download Started.')
-    file_url = f'https://fleetcard.vivoenergy.com/WP/v1/reports/card-purchase-list?refresh=true&startDate={start_date}&endDate={end_date}&isProcessing=1&cardList=1401053310,1401053311,1401053312,1401053313,1401053314,1401053315,1401053316,1401053317,1401053318,1401053319&service=&pos=&invoiceNumber=&format=XLS&additionalColumns=holder,plate-nr,consumption'
-    response=session.get(file_url)
+    file_url = 'https://fleetcard.vivoenergy.com/WP/v1/reports/card-purchase-list'
+    query_params = {
+        "refresh": "true",
+        "itemsPerPage": 25,
+        "currentPage": 1,
+        "startDate": start_date,
+        "endDate": end_date,
+        "isProcessing": 1,
+        "cardList": "",
+        "service": "",
+        "pos": "",
+        "invoiceNumber": "",
+        "format": "CSV",
+        "additionalColumns": "consumption,holder,plate-nr"
+    }
+    response=session.get(file_url, params=unquote(urlencode(query_params)))
     with open('downloadingData.xls', 'a') as f:
         f.write(response.text)   
     os.rename('downloadingData.xls', "STCPurchasesIn{}.xls".format((datetime.now() + relativedelta(months=-1)).strftime('%b')))
@@ -229,8 +268,22 @@ def download_excel_file(login,password,start_date, end_date,card=''):
     session.post(login_url, data=payload)
 
     # Step 2: Download the excel file
-    file_url = f'https://fleetcard.vivoenergy.com/WP/v1/reports/card-purchase-list?refresh=true&itemsPerPage=25&currentPage=1&startDate={start_date}&endDate={end_date}&isProcessing=1&cardList={card}&service=&pos=&invoiceNumber=&format=CSV&additionalColumns=consumption,holder,plate-nr'
-    response=session.get(file_url)
+    file_url = 'https://fleetcard.vivoenergy.com/WP/v1/reports/card-purchase-list'
+    query_params = {
+        "refresh": "true",
+        "itemsPerPage": 25,
+        "currentPage": 1,
+        "startDate": start_date,
+        "endDate": end_date,
+        "isProcessing": 1,
+        "cardList": "",
+        "service": "",
+        "pos": "",
+        "invoiceNumber": "",
+        "format": "CSV",
+        "additionalColumns": "consumption,holder,plate-nr"
+    }
+    response=session.get(file_url, params=unquote(urlencode(query_params)))
     with open(f'{card}CardPurchases.csv', 'wb') as f:
         f.write(response.content)
 
@@ -270,8 +323,8 @@ while True:
     elif choice == 4:
         while True:
             try:
-                login , password= checkAccount()
-                if login and password:
+                login = checkAccount()
+                if login[0]:
                     break
             except:
                 print("Invalid account choice. Try again.")    
