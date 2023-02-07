@@ -104,8 +104,8 @@ def downloadStcData():
     end_date= (datetime.now() + relativedelta(day=1,days=-1,hour=23,minute=59,second=59)).strftime('%Y-%m-%d %H:%M:%S')
     login_url = 'https://fleetcard.vivoenergy.com/WP/v1/login'
     payload = {
-        'login': 'maher.haddad@ranamotors.com4',
-        'password': 'vivo1234',
+        'login': '',
+        'password': '',
         }
     session = requests.Session()
     session.post(login_url, data=payload)
