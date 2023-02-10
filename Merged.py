@@ -224,7 +224,7 @@ def getUserNPass(choice):
         account= 'ELDACO'
 
     elif choice == 0:
-        return 0,0;
+        return 0,0,0;
 
     else:
         return None
@@ -423,7 +423,7 @@ while True:
 
             try:
 
-                accountsInfo= getUserNPass('WEST AFRICA TIRE SERV. LTD')
+                accountsInfo= getUserNPass(choice)
                 login = accountsInfo[0]
                 password = accountsInfo[1]
                 accountName=accountsInfo[2]
