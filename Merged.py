@@ -6,19 +6,18 @@ from datetime import datetime
 from dateutil import parser
 from dateutil.relativedelta import relativedelta
 from dateutil.rrule import MO, TU, WE, TH, FR, SA, SU
-from urllib.parse import urlencode,urljoin
-from urllib.parse import unquote
+from urllib.parse import urlencode,unquote
 
-def getCardsNumbers():
+def getCardsNumbers(login= '',password= '',accountName=''):
     accounts = pd.read_csv("Credentials.csv")
-    login= ''
-    password= ''
     directory='.\CardsNumbers'
     if not os.path.exists(directory):
         os.makedirs(directory)
     for index, row in accounts.iterrows():
         login=row['username']
         password= row['password']
+        accountName=row['Account Name']
+        credID=row['id']
         # Step 1: Log in to the website
         login_url = 'https://fleetcard.vivoenergy.com/WP/v1/login'
         payload = {
@@ -61,25 +60,133 @@ def getCardsNumbers():
 
         data = (session.get(file_url,params=query_params)).json()
         # Extract the relevant data from the dictionary object
-        rows = [[index,data['cardNumber'],data['holder']['carPlateNumber'], data['holder']['name']] for data in data['cardList']]
-
+        rows = [[credID,data['cardNumber'],data['holder']['carPlateNumber'], data['holder']['name']] for data in data['cardList']]
         # Write the data to a CSV file
-        name=accounts.loc[index]['Account Name']
-        with open(f'{directory}\CardsInAccount {name}.csv', 'w', newline='') as csvfile:
+        with open(f'{directory}\CardsInAccount {accountName}.csv', 'w', newline='') as csvfile:
             writer = csv.writer(csvfile)
             writer.writerow(['id','Card number', 'Vehicle registration number' , 'Card holder'])
             writer.writerows(rows)
 
-def downloadAllData():
+def search(query):
     accounts = pd.read_csv("Credentials.csv")
+    login= ''
+    password= ''
+    df = pd.DataFrame()
+    
     for index, row in accounts.iterrows():
+            login=row['username']
+            password= row['password']
+            accountName = row['abbrevietedNames']
+            # Step 1: Log in to the website
+            login_url = 'https://fleetcard.vivoenergy.com/WP/v1/login'
+            payload = {
+            'login': login,
+            'password': password,
+            }
+            try:
+                    # code to attempt the login
+                    session = requests.Session()
+                    response = session.post(login_url, data=payload)
+                    if response.status_code != 200:
+                            raise Exception("Login failed, Problem with credentials")
+            except requests.exceptions.ConnectionError:
+                    # handle the error when the connection is lost
+                    print("Error: Connection lost. Please check your internet connection and try again.")
+                    return
+            except requests.exceptions.Timeout as e:
+                    print("The request timed out:", e)
+                    return
+            except Exception as e:
+                    # handle the error if there is a problem with the credentials
+                    print("Error:", e)
+                    return
+            # Step 2: Getting data
+            file_url = 'https://fleetcard.vivoenergy.com/WP/v1/card-list'
+            query_params = {
+                    "refresh": "true",
+                    "itemsPerPage": 0,
+                    "currentPage": 0,
+                    "idCardStatus": "",
+                    "purseList": "",
+                    "query": query,
+                    "depAndCC": ""
+                    }
+            data=session.get(file_url,params=query_params).json()
+            # Extract the relevant data from the dictionary object
+            df1= pd.DataFrame([[data['cardNumber'],data['holder']['carPlateNumber'], data['holder']['name'],accountName] for data in data['cardList']])
+            df=pd.concat([df,df1])
+    df.columns = ['Card number', 'Vehicle Number' , 'Card Holder' , 'Account']
+    pd.set_option('display.max_rows', None)
+    pd.set_option('display.max_columns', None)
+    df.reset_index(drop=True, inplace=True)
+    if df.shape[0] == 1:
+            return df.loc[0]['Card number']
+    elif df.shape[0] > 15:
+            itemsPerPage=15
+            totalPages = (df.shape[0] // itemsPerPage) + 1
+            currentPage = 1
+            page=pd.DataFrame()
+            while True:
+                    startIndex = (currentPage - 1) * itemsPerPage
+                    endIndex = startIndex + itemsPerPage
+                    page = df[startIndex:endIndex]
+                    os.system('cls')
+                    print('Multiple Matches Founds')
+                    print(f"Page {currentPage} of {totalPages}")
+                    print(page)
+                    try:
+                            rowIndex = input("Enter 'n' for next page, 'p' for previous page, 'q' to quit or Enter the index of a row to choose the card number: ")
+                            if rowIndex == 'n':
+                                    currentPage += 1
+                                    if currentPage > totalPages:
+                                            currentPage = 1
+                            elif rowIndex == 'p':
+                                    currentPage -= 1
+                                    if currentPage < 1:
+                                            currentPage = totalPages
+                            elif rowIndex == 'q':
+                                    break
+                            else:
+                                            rowIndex = int(rowIndex)
+                                            if rowIndex >= 0 and rowIndex < df.shape[0]:
+                                                    return df.iloc[rowIndex]['Card number']
+                                            else:
+                                                    input("Invalid row index. Please enter a valid number.\nPress Enter to continue...")
+                    except ValueError:
+                                    input("Invalid input. Please enter 'n', 'p', 'q', or a valid index number.\nPress Enter to continue...")
+    else:
+            df.index = df.index + 1
+            while True:
+                    os.system('cls')
+                    print('Multiple Matches Founds, Choose one:\n',df)
+                    try:
+                            rowIndex=input('Enter the index of a row to choose the card number(q to quit): ')
+                            if rowIndex == 'q':
+                                    break
+                            else:
+                                    rowIndex = int(rowIndex)
+                                    if rowIndex >= 0 and rowIndex < df.shape[0]:
+                                            return df.loc[rowIndex]['Card number']
+                                    else:
+                                            input("Invalid row index. Please enter a valid number.\nPress Enter to continue...")
+                    except ValueError:
+                            input("Invalid input. Please enter a valid index number.\nPress Enter to continue...")
+
+def downloadAllData():
+    os.system('cls')
+    accounts = pd.read_csv("Credentials.csv")
+    print('Downloading All Accounts Data:\n') 
+    for index, row in accounts.iterrows():
+        login=row['username']
+        password= row['password']
+        accountName=row['Account Name']
         # Step 1: Log in to the website
         start_date= parser.parse((datetime.now() + relativedelta(day=1,months=-1,hour=00,minute=00,second=00)).strftime('%Y-%m-%d %H:%M:%S'))
         end_date= parser.parse((datetime.now() + relativedelta(day=1,days=-1,hour=23,minute=59,second=59)).strftime('%Y-%m-%d %H:%M:%S'))
         login_url = 'https://fleetcard.vivoenergy.com/WP/v1/login'
         payload = {
-            'login': row['username'],
-            'password': row['password'],
+            'login': login,
+            'password': password,
             }
         try:
             # Login attempt
@@ -100,8 +207,7 @@ def downloadAllData():
             return
 
         # Step 2: Download the excel file
-        accountName = accounts.loc[index]['Account Name']
-        print(f'Download for Account {accountName} Started.') 
+        print(f'Account {accountName} Started.') 
         file_url = 'https://fleetcard.vivoenergy.com/WP/v1/reports/card-purchase-list'
         query_params = {
             "refresh": "true",
@@ -121,13 +227,13 @@ def downloadAllData():
         response=session.get(file_url, params=unquote(urlencode(query_params)))
         with open('downloadingData.csv', 'a') as f:
             f.write(response.text)
-        print(f'Download for Account {accountName} is done')    
     df = pd.read_csv('downloadingData.csv')
     value_index = df[df['Transaction date'] == 'Transaction date'].index
     df = df.drop(value_index)
     df.to_excel(f'All Card Purchases Report {start_date.strftime("%b %d")} - {end_date.strftime("%b %d")}.xls',engine='openpyxl', index=False)
     os.remove('downloadingData.csv')
-    print('All Purchases Data From All Accounts Download is Done.')
+    input('Downloading Data is Done.\nPress Enter to continue...')
+    
 
 
 def downloadStcData():
@@ -161,7 +267,6 @@ def downloadStcData():
         return
 
     # Step 2: Download the excel file
-    print('STC Cards Purchases Data Download Started.')
     file_url = 'https://fleetcard.vivoenergy.com/WP/v1/reports/card-purchase-list'
     query_params = {
         "refresh": "true",
@@ -182,6 +287,7 @@ def downloadStcData():
     with open(f'STC Report {start_date.strftime("%b %d")} - {end_date.strftime("%b %d")}.xls', 'wb') as f:
         f.write(response.content)   
     print('STC Cards Purchases Data Download is Done.')
+    input("Press Enter to continue...")
 
 
 def getCredentialsId(cardNumber):
@@ -194,54 +300,61 @@ def getCredentialsId(cardNumber):
     return None
 
 
-def getUserNPass(choice):
+def getUserNPass(choice,account=0):
 
-    if choice == 1:
+    if choice == 1 or choice == 'RANA MOTORS' :
         account= 'RANA MOTORS'
 
-    elif choice == 2:
+    elif choice == 2 or choice == 'B.B.C INDUSTRIALS CO(GH) LTD' :
         account= 'B.B.C INDUSTRIALS CO(GH) LTD'
 
-    elif choice == 3:
+    elif choice == 3 or choice == 'LAJJIMARK CO. LTD.' :
         account= 'LAJJIMARK CO. LTD.'
 
     elif choice == 4 or choice == 'WEST AFRICA TIRE SERV. LTD':
         account= 'WEST AFRICA TIRE SERV. LTD'
 
-    elif choice == 5:
+    elif choice == 5 or choice == 'HIGHLAND SPRINGS (GH) LTD' :
         account= 'HIGHLAND SPRINGS (GH) LTD'
 
-    elif choice == 6:
+    elif choice == 6 or choice == 'KHOMARA PRINTING PRESS LTD' :
         account= 'KHOMARA PRINTING PRESS LTD'
 
-    elif choice == 7:
+    elif choice == 7 or choice == 'ODAYMAT INVESTMENTS LTD' :
         account= 'ODAYMAT INVESTMENTS LTD'
 
-    elif choice == 8:
+    elif choice == 8 or choice == 'RANA ATLAS' :
         account= 'RANA ATLAS'
 
-    elif choice == 9:
+    elif choice == 9 or choice == 'ELDACO' :
         account= 'ELDACO'
+
+    elif choice == 10 :
+        downloadAllData()
 
     elif choice == 0:
         return 0,0,0;
 
     else:
         return None
+    if account==0:
+        return 0,0,0;
 
     accounts = pd.read_csv("Credentials.csv")
     if account in accounts.values:
         index = accounts[accounts['Account Name'] == account].index[0]
-        id= accounts.loc[index]['id']
-        return accounts.loc[id]['username'],accounts.loc[id]['password'],accounts.loc[id]['Account Name']
+        credID= accounts.loc[index]['id']
+        return accounts.loc[credID]['username'],accounts.loc[credID]['password'],accounts.loc[credID]['Account Name']
     
 
 
 def getUserDateChoice():
-    print("Choose an option:\n1. Custom date and time\n2. This week\n3. Last week\n4. This month\n5. Last month\n6. Go back X days from today\n7. Go back X weeks from this week\n8. Choose a specific month(current year)\n\n  0. Exit")
+    os.system('cls')
+    print("Choose an option:\n1. Custom date and time\n2. This week\n3. Last week\n4. This month\n5. Last month\n6. Go back X days from today\n7. Go back X weeks from this week\n8. Choose a specific month(current year)\n\n0. Exit\n")
     userInput=int(input("Enter your choice: "))
     # Custom date and time
-    if userInput == 1:           
+    if userInput == 1:       
+        os.system('cls')    
 
         while True:
             while True:
@@ -271,42 +384,49 @@ def getUserDateChoice():
 
     # This week
     elif userInput == 2:
+        os.system('cls')
         start_date= (datetime.now() + relativedelta(weekday=MO(-1),hour=00,minute=00,second=00)).strftime('%Y-%m-%d %H:%M:%S')
         end_date= (datetime.now()).strftime('%Y-%m-%d %H:%M:%S')
         return parser.parse(start_date) , parser.parse(end_date)
 
     # Last week
     elif userInput == 3:
+        os.system('cls')
         start_date= (datetime.now() + relativedelta(weekday=MO(-2),hour=00,minute=00,second=00)).strftime('%Y-%m-%d %H:%M:%S')
         end_date= (datetime.now() + relativedelta(weekday=SU(-1))).strftime('%Y-%m-%d %H:%M:%S')
         return parser.parse(start_date) , parser.parse(end_date)
 
     # This month
     elif userInput == 4:
+        os.system('cls')
         start_date= (datetime.now() + relativedelta(day=1,hour=00,minute=00,second=00)).strftime('%Y-%m-%d %H:%M:%S')
         end_date= (datetime.now()).strftime('%Y-%m-%d %H:%M:%S')
         return parser.parse(start_date) , parser.parse(end_date)
 
     # Last month
     elif userInput == 5:
+        os.system('cls')
         start_date= (datetime.now() + relativedelta(day=1, months=-1,hour=00,minute=00,second=00)).strftime('%Y-%m-%d %H:%M:%S')
         end_date= (datetime.now() + relativedelta(day=1,days=-1)).strftime('%Y-%m-%d %H:%M:%S')
         return parser.parse(start_date) , parser.parse(end_date)
 
     # Go back X days from today
     elif userInput == 6:
+        os.system('cls')
         start_date= (datetime.now() + relativedelta(days=-int(input("enter how many days back: ")),hour=00,minute=00,second=00)).strftime('%Y-%m-%d %H:%M:%S')
         end_date= (datetime.now()).strftime('%Y-%m-%d %H:%M:%S')
         return parser.parse(start_date) , parser.parse(end_date)
 
     # Go back X weeks from this week
     elif userInput == 7:
+        os.system('cls')
         start_date= (datetime.now() + relativedelta(weekday=MO(-1), weeks=-int(input("enter how many weeks back: ")),hour=00,minute=00,second=00)).strftime('%Y-%m-%d %H:%M:%S')
         end_date= (datetime.now() + relativedelta(weekday=SU(-1))).strftime('%Y-%m-%d %H:%M:%S')
         return parser.parse(start_date) , parser.parse(end_date)
 
     # Choose a specific month(current year)
     elif userInput == 8:
+        os.system('cls')
         month=int(input("enter month number: "))
         start_date= (datetime.now() + relativedelta(day=1, month=month,hour=00,minute=00,second=00)).strftime('%Y-%m-%d %H:%M:%S')
         end_date= (datetime.now() + relativedelta(month=month+1,day=1,days=-1, hour=23,minute=59,second=59)).strftime('%Y-%m-%d %H:%M:%S')
@@ -360,66 +480,97 @@ def download_excel_file(login,password,start_date, end_date,card=''):
     }
     print("Fetching requested data...")
     response=session.get(file_url, params=unquote(urlencode(query_params)))
-    # with open('temp.xls', 'wb') as f:
-    #     f.write(response.content)
     return response
 
 
-#Main Code
-
+#Main Code 
+os.system('cls')
 accounts = pd.read_csv("Credentials.csv")
 if os.path.exists('.\CardsNumbers'):
     for i in range(9):
-        name = accounts.loc[i]['Account Name']
-        if os.path.isfile(f'.\CardsNumbers\CardsInAccount {name}.csv'):
+        credID = accounts.loc[i]['id']
+        print(credID)
+        accountName = accounts.loc[credID]['Account Name']
+        if os.path.isfile(f'.\CardsNumbers\CardsInAccount {accountName}.csv'):
             pass
         else:
             print('Fetching Cards Data...')
             getCardsNumbers()
 else:
+    print('Fetching Cards Data...')
     getCardsNumbers()
 
-
+# 1. card statment 
+#     1. search for a card or vehicle number
+#     2. identify a card account
+#     3. update card numbers
+# 2. account statment
+#      choose an account(display all account, and add an option to all accounts)
+# 3. stc statment
 while True:
-
-    print("1. Download All Purchases Data From All Accounts.\n2. Download STC Cards Purchases.\n3. Enter a Card number.\n4. Choose an Account.\n5. Enter a Card number to identify it's account. \n6. Update Cards Numbers. \n\n0. Exit the program")
-    choice = int(input("Enter your choice [1-6]: "))
+    os.system('cls')
+    print("1. Card Statments\n2. Account Statments\n3. STC Statments\n\n0. Exit the program\n")
+    choice = int(input("Enter your choice [1-3]: "))
 
     if choice == 1:
-        downloadAllData()
+        os.system('cls')
+        print("1. Search a Card number or Vehicle Number.\n2. Enter a Card number to identify it's account.\n3. Update Cards Numbers. \n\n0. Exit\n")
+        choiceC= int(input("Enter your choice [1-3]: "))
+        if choiceC== 1:
+            while True:
+                os.system('cls')
+                inputCard = input("Enter Card Number or Vehicle Number(0 to exit): ")
 
-        
-    elif choice == 2:
-        downloadStcData()
-
-
-    elif choice == 3:
-        while True:
-            card = int(input("Enter your card number(0 to exit): "))
-
-            try:
-                if card == 0:
-                    break
-                else:
-                    credID= getCredentialsId(card)
-                    print(credID)
-                    if credID or credID == 0:
-                        login = accounts.loc[credID]['username']
-                        password = accounts.loc[credID]['password']
-                        start_date, end_date= getUserDateChoice()
-                        response = download_excel_file(login,password,start_date, end_date,card)
-                        with open(f'Card {card} Statements Report {start_date.strftime("%b %d")} - {end_date.strftime("%b %d")}.xls', 'wb') as f:
-                            f.write(response.content)
+                try:
+                    if inputCard == '0':
                         break
+                    else:
+                        card=int(search(int(inputCard)))
+                        credID= getCredentialsId(card)
+                        if credID or credID == 0:
+                            login = accounts.loc[credID]['username']
+                            password = accounts.loc[credID]['password']
+                            start_date, end_date= getUserDateChoice()
+                            if start_date==0:
+                                break
+                            else:
+                                response = download_excel_file(login,password,start_date, end_date,card)
+                                with open(f'Card {card} Statements Report {start_date.strftime("%b %d")} - {end_date.strftime("%b %d")}.xls', 'wb') as f:
+                                    f.write(response.content)
+                                input("Data download is done\nPress Enter to continue...")   
+                                break
 
-            except:
-                print("Invalid card number. Try again.")    
+                except:
+                    print("Invalid card number. Try again.")  
 
+        elif choiceC==2:
 
-    elif choice == 4:
+            while True:
+                os.system('cls')
+                card = int(input("Enter your card number (0 to exit): "))
+                try:
+                    if int(card) == 0:
+                        break;
+                        
+                    else:
+                        credID= getCredentialsId(card)
+                        if credID or credID == 0:
+                            accountName = accounts.loc[credID]['Account Name']
+                            print(f'This card number belongs to this account:\n {accountName}')
+                            input("Press Enter to continue...")
+                            break
+                except:
+                    print("Invalid card number. Try again.")
+
+        elif choiceC == 3 :
+            os.system('cls')
+            getCardsNumbers()
+
+    elif choice == 2:
         while True:
-            print("Choose an Account: \n1. RANA MOTORS\n2. B.B.C INDUSTRIALS CO(GH) LTD\n3. LAJJIMARK CO. LTD.\n4. WEST AFRICA TIRE SERV. LTD\n5. HIGHLAND SPRINGS (GH) LTD\n6. KHOMARA PRINTING PRESS LTD\n7. ODAYMAT INVESTMENTS LTD\n8. RANA ATLAS\n9. ELDACO\n\n0. Exit")
-            choice = int(input("Enter your choice [1-9]: "))
+            os.system('cls')
+            print("Choose an Account: \n1. RANA MOTORS\n2. B.B.C INDUSTRIALS CO(GH) LTD\n3. LAJJIMARK CO. LTD.\n4. WEST AFRICA TIRE SERV. LTD\n5. HIGHLAND SPRINGS (GH) LTD\n6. KHOMARA PRINTING PRESS LTD\n7. ODAYMAT INVESTMENTS LTD\n8. RANA ATLAS\n9. ELDACO\n\n10. All Accounts Data for last month\n\n0. Exit")
+            choice = int(input("Enter your choice [1-10]: "))
 
             try:
 
@@ -440,35 +591,16 @@ while True:
                             response = download_excel_file(login,password,start_date, end_date)
                             with open(f'{accountName} Statements Report {start_date.strftime("%b %d")} - {end_date.strftime("%b %d")}.xls', 'wb') as f:
                                 f.write(response.content)
+                            input("Data download is done\nPress Enter to continue...")
                             break
             except:
                 print("An Error Occurred, Try Again.")    
 
-
-
-    elif choice == 5:
-        while True:
-
-            card = int(input("Enter your card number (0 to exit): "))
-
-            try:
-
-                if int(card) == 0:
-                    break;
-                    
-                else:
-                    credID= getCredentialsId(card)
-                    if credID or credID == 0:
-                        accountName = accounts.loc[credID]['Account Name']
-                        print(f'This card number belongs to this account:\n {accountName}')
-                        break
-            except:
-                print("Invalid card number. Try again.")
-
-
-    elif choice == 6:
-        getCardsNumbers()
-
+    elif choice == 3:
+        os.system('cls')
+        print('Updating Cards Numbers...')
+        downloadStcData()
+        input('Updating Cards Numbers is done\nPress Enter to continue...')
 
     elif choice == 0:
         break    
