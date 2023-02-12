@@ -7,76 +7,14 @@ from dateutil import parser
 from dateutil.relativedelta import relativedelta
 from dateutil.rrule import MO, TU, WE, TH, FR, SA, SU
 from urllib.parse import urlencode,unquote
+from tabulate import tabulate
 
-def getCardsNumbers(login= '',password= '',accountName=''):
-    accounts = pd.read_csv("Credentials.csv")
-    directory='.\CardsNumbers'
-    if not os.path.exists(directory):
-        os.makedirs(directory)
-    for index, row in accounts.iterrows():
-        login=row['username']
-        password= row['password']
-        accountName=row['Account Name']
-        credID=row['id']
-        # Step 1: Log in to the website
-        login_url = 'https://fleetcard.vivoenergy.com/WP/v1/login'
-        payload = {
-            'login': login,
-            'password': password,
-            }
-
-
-        try:
-            # code to attempt the login
-            session = requests.Session()
-            response = session.post(login_url, data=payload)
-            if response.status_code != 200:
-                raise Exception("Login failed, Problem with credentials")
-        except requests.exceptions.ConnectionError:
-            # handle the error when the connection is lost
-            print("Error: Connection lost. Please check your internet connection and try again.")
-            return
-        except requests.exceptions.Timeout as e:
-            print("The request timed out:", e)
-            return
-        except Exception as e:
-            # handle the error if there is a problem with the credentials
-            print("Error:", e)
-            return
-
-
-            # Step 2: Getting data
-
-        file_url = 'https://fleetcard.vivoenergy.com/WP/v1/card-list'
-        query_params = {
-            "refresh": "true",
-            "itemsPerPage": 0,
-            "currentPage": 0,
-            "idCardStatus": "",
-            "purseList": "",
-            "query": "",
-            "depAndCC": ""
-        }
-
-        data = (session.get(file_url,params=query_params)).json()
-        # Extract the relevant data from the dictionary object
-        rows = [[credID,data['cardNumber'],data['holder']['carPlateNumber'], data['holder']['name']] for data in data['cardList']]
-        # Write the data to a CSV file
-        with open(f'{directory}\CardsInAccount {accountName}.csv', 'w', newline='') as csvfile:
-            writer = csv.writer(csvfile)
-            writer.writerow(['id','Card number', 'Vehicle registration number' , 'Card holder'])
-            writer.writerows(rows)
-
-def search(query):
-    accounts = pd.read_csv("Credentials.csv")
-    login= ''
-    password= ''
-    df = pd.DataFrame()
-    
+def search(query,login= '',password= '',accounts = pd.read_csv("Credentials.csv"),df = pd.DataFrame()):
     for index, row in accounts.iterrows():
             login=row['username']
             password= row['password']
-            accountName = row['abbrevietedNames']
+            accountName = row['Account Name']
+            accountNameA = row['abbrevietedNames']
             # Step 1: Log in to the website
             login_url = 'https://fleetcard.vivoenergy.com/WP/v1/login'
             payload = {
@@ -113,14 +51,14 @@ def search(query):
                     }
             data=session.get(file_url,params=query_params).json()
             # Extract the relevant data from the dictionary object
-            df1= pd.DataFrame([[data['cardNumber'],data['holder']['carPlateNumber'], data['holder']['name'],accountName] for data in data['cardList']])
+            df1= pd.DataFrame([[data['cardNumber'],data['holder']['carPlateNumber'], data['holder']['name'],data['cardStatus']['desc'],accountNameA,login,password,accountName] for data in data['cardList']])
             df=pd.concat([df,df1])
-    df.columns = ['Card number', 'Vehicle Number' , 'Card Holder' , 'Account']
+    df.columns = ['Card number', 'Vehicle Number' , 'Card Holder' , 'Status' , 'Account','Username', 'Password' , 'Account Name']
     pd.set_option('display.max_rows', None)
     pd.set_option('display.max_columns', None)
     df.reset_index(drop=True, inplace=True)
     if df.shape[0] == 1:
-            return df.loc[0]['Card number']
+            return df.iloc[0]['Username'],df.iloc[0]['Password'],df.iloc[0]['Card number'],df.iloc[0]['Account Name'],
     elif df.shape[0] > 15:
             itemsPerPage=15
             totalPages = (df.shape[0] // itemsPerPage) + 1
@@ -133,7 +71,7 @@ def search(query):
                     os.system('cls')
                     print('Multiple Matches Founds')
                     print(f"Page {currentPage} of {totalPages}")
-                    print(page)
+                    print(tabulate(page[['Card number', 'Vehicle Number' , 'Card Holder', 'Status' ,'Account']], headers = 'keys', tablefmt = 'psql'))
                     try:
                             rowIndex = input("Enter 'n' for next page, 'p' for previous page, 'q' to quit or Enter the index of a row to choose the card number: ")
                             if rowIndex == 'n':
@@ -149,7 +87,7 @@ def search(query):
                             else:
                                             rowIndex = int(rowIndex)
                                             if rowIndex >= 0 and rowIndex < df.shape[0]:
-                                                    return df.iloc[rowIndex]['Card number']
+                                                    return df.iloc[rowIndex]['Username'] , df.iloc[rowIndex]['Password'] , df.iloc[rowIndex]['Card number']
                                             else:
                                                     input("Invalid row index. Please enter a valid number.\nPress Enter to continue...")
                     except ValueError:
@@ -158,7 +96,8 @@ def search(query):
             df.index = df.index + 1
             while True:
                     os.system('cls')
-                    print('Multiple Matches Founds, Choose one:\n',df)
+                    print('Multiple Matches Founds, Choose one:')
+                    print(tabulate(df[['Card number', 'Vehicle Number' , 'Card Holder', 'Status' ,'Account']], headers = 'keys', tablefmt = 'psql'))
                     try:
                             rowIndex=input('Enter the index of a row to choose the card number(q to quit): ')
                             if rowIndex == 'q':
@@ -166,7 +105,7 @@ def search(query):
                             else:
                                     rowIndex = int(rowIndex)
                                     if rowIndex >= 0 and rowIndex < df.shape[0]:
-                                            return df.loc[rowIndex]['Card number']
+                                            return df.iloc[rowIndex]['Username'],df.iloc[rowIndex]['Password'],df.iloc[rowIndex]['Card number']
                                     else:
                                             input("Invalid row index. Please enter a valid number.\nPress Enter to continue...")
                     except ValueError:
@@ -485,28 +424,6 @@ def download_excel_file(login,password,start_date, end_date,card=''):
 
 #Main Code 
 os.system('cls')
-accounts = pd.read_csv("Credentials.csv")
-if os.path.exists('.\CardsNumbers'):
-    for i in range(9):
-        credID = accounts.loc[i]['id']
-        print(credID)
-        accountName = accounts.loc[credID]['Account Name']
-        if os.path.isfile(f'.\CardsNumbers\CardsInAccount {accountName}.csv'):
-            pass
-        else:
-            print('Fetching Cards Data...')
-            getCardsNumbers()
-else:
-    print('Fetching Cards Data...')
-    getCardsNumbers()
-
-# 1. card statment 
-#     1. search for a card or vehicle number
-#     2. identify a card account
-#     3. update card numbers
-# 2. account statment
-#      choose an account(display all account, and add an option to all accounts)
-# 3. stc statment
 while True:
     os.system('cls')
     print("1. Card Statments\n2. Account Statments\n3. STC Statments\n\n0. Exit the program\n")
@@ -514,22 +431,23 @@ while True:
 
     if choice == 1:
         os.system('cls')
-        print("1. Search a Card number or Vehicle Number.\n2. Enter a Card number to identify it's account.\n3. Update Cards Numbers. \n\n0. Exit\n")
-        choiceC= int(input("Enter your choice [1-3]: "))
+        print("1. Search a Card number or Vehicle Number.\n2. Enter a Card number to identify it's account. \n\n0. Exit\n")
+        choiceC= int(input("Enter your choice [1-2]: "))
         if choiceC== 1:
             while True:
                 os.system('cls')
                 inputCard = input("Enter Card Number or Vehicle Number(0 to exit): ")
 
                 try:
-                    if inputCard == '0':
+                    if int(inputCard) == 0:
                         break
                     else:
-                        card=int(search(int(inputCard)))
-                        credID= getCredentialsId(card)
-                        if credID or credID == 0:
-                            login = accounts.loc[credID]['username']
-                            password = accounts.loc[credID]['password']
+                        print('Fetching Data...')
+                        accountsInfo=search(int(inputCard))
+                        login=accountsInfo[0]
+                        password=accountsInfo[1]
+                        card=int(accountsInfo[2])
+                        if login:
                             start_date, end_date= getUserDateChoice()
                             if start_date==0:
                                 break
@@ -549,22 +467,18 @@ while True:
                 os.system('cls')
                 card = int(input("Enter your card number (0 to exit): "))
                 try:
-                    if int(card) == 0:
+                    if card == 0:
                         break;
                         
                     else:
-                        credID= getCredentialsId(card)
-                        if credID or credID == 0:
-                            accountName = accounts.loc[credID]['Account Name']
+                        accountsInfo=search(card)
+                        accountName=accountsInfo[3]
+                        if accountName:
                             print(f'This card number belongs to this account:\n {accountName}')
                             input("Press Enter to continue...")
                             break
                 except:
                     print("Invalid card number. Try again.")
-
-        elif choiceC == 3 :
-            os.system('cls')
-            getCardsNumbers()
 
     elif choice == 2:
         while True:
@@ -598,9 +512,7 @@ while True:
 
     elif choice == 3:
         os.system('cls')
-        print('Updating Cards Numbers...')
         downloadStcData()
-        input('Updating Cards Numbers is done\nPress Enter to continue...')
 
     elif choice == 0:
         break    
