@@ -9,7 +9,11 @@ from dateutil.rrule import MO, TU, WE, TH, FR, SA, SU
 from urllib.parse import urlencode,unquote
 from tabulate import tabulate
 
-def search(query,login= '',password= '',accounts = pd.read_csv("Credentials.csv"),df = pd.DataFrame()):
+
+def search(query,search='',login= '',password= '',accounts = pd.read_csv("Credentials.csv"),df = pd.DataFrame()):
+    # the search parameter purpose is to determine the way the function is going to be used when called.
+    # search='' will return values.
+    # search='displayInfo' will display search results only.
     for index, row in accounts.iterrows():
             login=row['username']
             password= row['password']
@@ -29,14 +33,14 @@ def search(query,login= '',password= '',accounts = pd.read_csv("Credentials.csv"
                             raise Exception("Login failed, Problem with credentials")
             except requests.exceptions.ConnectionError:
                     # handle the error when the connection is lost
-                    print("Error: Connection lost. Please check your internet connection and try again.")
+                    input("Error: Connection lost. Please check your internet connection and try again.")
                     return
             except requests.exceptions.Timeout as e:
-                    print("The request timed out:", e)
+                    input("The request timed out:", e)
                     return
             except Exception as e:
                     # handle the error if there is a problem with the credentials
-                    print("Error:", e)
+                    input("Error:", e)
                     return
             # Step 2: Getting data
             file_url = 'https://fleetcard.vivoenergy.com/WP/v1/card-list'
@@ -51,65 +55,85 @@ def search(query,login= '',password= '',accounts = pd.read_csv("Credentials.csv"
                     }
             data=session.get(file_url,params=query_params).json()
             # Extract the relevant data from the dictionary object
-            df1= pd.DataFrame([[data['cardNumber'],data['holder']['carPlateNumber'], data['holder']['name'],data['cardStatus']['desc'],accountNameA,login,password,accountName] for data in data['cardList']])
+            df1= pd.DataFrame([[data['cardNumber'], data['holder']['carPlateNumber'], data['holder']['name'],data['cardStatus']['desc'], data['purseList'][0]['limitFormatted'],'\n'.join([x['cardNumber'] for x in data['mifareList']]) if data['mifareList'] else 'None',accountNameA, login, password, accountName]for data in data['cardList']])
             df=pd.concat([df,df1])
-    df.columns = ['Card number', 'Vehicle Number' , 'Card Holder' , 'Status' , 'Account','Username', 'Password' , 'Account Name']
+    df.columns = ['Card number', 'Vehicle Number' , 'Card Holder' , 'Status' ,'Limit','Sticker Number', 'Account','Username', 'Password' , 'Account Name']
     pd.set_option('display.max_rows', None)
     pd.set_option('display.max_columns', None)
     df.reset_index(drop=True, inplace=True)
-    if df.shape[0] == 1:
-            return df.iloc[0]['Username'],df.iloc[0]['Password'],df.iloc[0]['Card number'],df.iloc[0]['Account Name'],
-    elif df.shape[0] > 15:
-            itemsPerPage=15
-            totalPages = (df.shape[0] // itemsPerPage) + 1
-            currentPage = 1
-            page=pd.DataFrame()
-            while True:
-                    startIndex = (currentPage - 1) * itemsPerPage
-                    endIndex = startIndex + itemsPerPage
-                    page = df[startIndex:endIndex]
-                    os.system('cls')
-                    print('Multiple Matches Founds')
-                    print(f"Page {currentPage} of {totalPages}")
-                    print(tabulate(page[['Card number', 'Vehicle Number' , 'Card Holder', 'Status' ,'Account']], headers = 'keys', tablefmt = 'psql'))
-                    try:
-                            rowIndex = input("Enter 'n' for next page, 'p' for previous page, 'q' to quit or Enter the index of a row to choose the card number: ")
-                            if rowIndex == 'n':
-                                    currentPage += 1
-                                    if currentPage > totalPages:
-                                            currentPage = 1
-                            elif rowIndex == 'p':
-                                    currentPage -= 1
-                                    if currentPage < 1:
-                                            currentPage = totalPages
-                            elif rowIndex == 'q':
-                                    break
-                            else:
-                                            rowIndex = int(rowIndex)
-                                            if rowIndex >= 0 and rowIndex < df.shape[0]:
-                                                    return df.iloc[rowIndex]['Username'] , df.iloc[rowIndex]['Password'] , df.iloc[rowIndex]['Card number']
-                                            else:
-                                                    input("Invalid row index. Please enter a valid number.\nPress Enter to continue...")
-                    except ValueError:
-                                    input("Invalid input. Please enter 'n', 'p', 'q', or a valid index number.\nPress Enter to continue...")
+    # if there is only one row, return the result 
+    if df.shape[0] == 1:                                        
+        if search == 'displayInfo' :
+            os.system('cls')
+            print(tabulate(df[['Card number', 'Vehicle Number' , 'Status' ,'Account','Limit','Sticker Number']], headers = 'keys', tablefmt = 'rounded_grid',showindex='never'))
+            input('Press enter to continue...')
+            return
+        else:    
+            return df.loc[0]['Username'],df.loc[0]['Password'],df.loc[0]['Card number'],df.loc[0]['Vehicle Number'],df.loc[0]['Account Name']
+    # if there is more than 15 results, display them and user will be prompted to choose, with pages navigation
+    elif df.shape[0] > 10:
+        itemsPerPage=10
+        totalPages = (df.shape[0] // itemsPerPage) + 1
+        currentPage = 1
+        while True:
+            startIndex = (currentPage - 1) * itemsPerPage
+            endIndex = startIndex + itemsPerPage
+            page = df[startIndex:endIndex]
+            os.system('cls')
+            print('Multiple Matches Founds')
+            print(f"Page {currentPage} of {totalPages}")
+            if search == 'displayInfo':
+                print(tabulate(page[['Card number', 'Vehicle Number' , 'Status' ,'Account','Limit','Sticker Number']], headers = 'keys', tablefmt = 'rounded_grid',showindex='never'))
+            else:
+                print(tabulate(page[['Card number', 'Vehicle Number' , 'Card Holder', 'Status' ,'Account','Limit']], headers = 'keys', tablefmt = 'rounded_grid'))
+            try:
+                    if search == 'displayInfo':
+                        rowIndex = input("Enter 'n' for next page, 'p' for previous page, 'q' to quit: ")  
+                        if rowIndex !='n' and rowIndex != 'p' and rowIndex != 'q':
+                            input("Invalid input. Please enter 'n', 'p' or 'q'.\nPress Enter to continue...")
+                    else:
+                        rowIndex = input("Enter 'n' for next page, 'p' for previous page, 'q' to quit or Enter the index of a row to choose the card number: ")
+                    if rowIndex == 'n':
+                            currentPage += 1
+                            if currentPage > totalPages:
+                                    currentPage = 1
+                    elif rowIndex == 'p':
+                            currentPage -= 1
+                            if currentPage < 1:
+                                    currentPage = totalPages
+                    elif rowIndex == 'q':
+                            return 'q'
+                    else:
+                        if search != 'displayInfo':
+                            rowIndex = int(rowIndex)
+                            if rowIndex >= 0 and rowIndex < df.shape[0]:
+                                    return df.loc[rowIndex]['Username'],df.loc[rowIndex]['Password'],df.loc[rowIndex]['Card number'],df.loc[rowIndex]['Vehicle Number']
+            except ValueError:
+                input("Invalid input. Please enter 'n', 'p', 'q', or a valid index number.\nPress Enter to continue...")
+    # if there is less than 15 results, display them and user will be prompted to choose
     else:
-            df.index = df.index + 1
-            while True:
-                    os.system('cls')
-                    print('Multiple Matches Founds, Choose one:')
-                    print(tabulate(df[['Card number', 'Vehicle Number' , 'Card Holder', 'Status' ,'Account']], headers = 'keys', tablefmt = 'psql'))
-                    try:
-                            rowIndex=input('Enter the index of a row to choose the card number(q to quit): ')
-                            if rowIndex == 'q':
-                                    break
-                            else:
-                                    rowIndex = int(rowIndex)
-                                    if rowIndex >= 0 and rowIndex < df.shape[0]:
-                                            return df.iloc[rowIndex]['Username'],df.iloc[rowIndex]['Password'],df.iloc[rowIndex]['Card number']
-                                    else:
-                                            input("Invalid row index. Please enter a valid number.\nPress Enter to continue...")
-                    except ValueError:
-                            input("Invalid input. Please enter a valid index number.\nPress Enter to continue...")
+        df.index = df.index + 1
+        while True:
+                os.system('cls')
+                print('Multiple Matches Founds:')
+                try:
+                    if search == 'displayInfo':
+                        print(tabulate(df[['Card number', 'Vehicle Number' , 'Status' ,'Account','Limit','Sticker Number']], headers = 'keys', tablefmt = 'rounded_grid',showindex='never'))
+                        input('Press Enter to continue...')
+                        break
+                    else:  
+                        print(tabulate(df[['Card number', 'Vehicle Number' , 'Card Holder', 'Status' ,'Account','Limit']], headers = 'keys', tablefmt = 'rounded_grid'))
+                        rowIndex=input('Enter the index of a row to choose the card number(q to quit): ')
+                        if rowIndex == 'q':
+                                return 'q'
+                        else:
+                                rowIndex = int(rowIndex)
+                                if rowIndex >= 0 and rowIndex < df.shape[0]:
+                                        return df.loc[rowIndex]['Username'],df.loc[rowIndex]['Password'],df.loc[rowIndex]['Card number'],df.loc[rowIndex]['Vehicle Number']
+                                else:
+                                        input("Invalid row index. Please enter a valid number.\nPress Enter to continue...")
+                except ValueError:
+                        input("Invalid input. Please enter a valid index number.\nPress Enter to continue...")
 
 def downloadAllData():
     os.system('cls')
@@ -135,14 +159,14 @@ def downloadAllData():
                 raise Exception("Login failed, Problem with credentials")
         except requests.exceptions.ConnectionError:
             # handle the error when the connection is lost
-            print("Error: Connection lost. Please check your internet connection and try again.")
+            input("Error: Connection lost. Please check your internet connection and try again.")
             return
         except requests.exceptions.Timeout as e:
-            print("The request timed out:", e)
+            input("The request timed out:", e)
             return
         except Exception as e:
             # handle the error if there is a problem with the credentials
-            print("Error:", e)
+            input("Error:", e)
             return
 
         # Step 2: Download the excel file
@@ -195,16 +219,15 @@ def downloadStcData():
             raise Exception("Login failed, Problem with credentials")
     except requests.exceptions.ConnectionError:
         # code to handle the error when the connection is lost
-        print("Error: Connection lost. Please check your internet connection and try again.")
+        input("Error: Connection lost. Please check your internet connection and try again.")
         return
     except requests.exceptions.Timeout as e:
-        print("The request timed out:", e)
+        input("The request timed out:", e)
         return 
     except Exception as e:
         # handle the error if there is a problem with the credentials
-        print("Error:", e)
+        input("Error:", e)
         return
-
     # Step 2: Download the excel file
     file_url = 'https://fleetcard.vivoenergy.com/WP/v1/reports/card-purchase-list'
     query_params = {
@@ -214,7 +237,7 @@ def downloadStcData():
         "startDate": start_date,
         "endDate": end_date,
         "isProcessing": 1,
-        "cardList": "",
+        "cardList": "1401053310,1401053311,1401053312,1401053313,1401053314,1401053315,1401053316,1401053317,1401053318,1401053319",
         "service": "",
         "pos": "",
         "invoiceNumber": "",
@@ -227,17 +250,6 @@ def downloadStcData():
         f.write(response.content)   
     print('STC Cards Purchases Data Download is Done.')
     input("Press Enter to continue...")
-
-
-def getCredentialsId(cardNumber):
-    dir_path = '.\CardsNumbers'
-    csv_files = [f for f in os.listdir(dir_path) if f.endswith('.csv')]
-    for csv_file in csv_files:
-        df = pd.read_csv(os.path.join(dir_path, csv_file))
-        if cardNumber in df.values:
-            return df.loc[0]['id']
-    return None
-
 
 def getUserNPass(choice,account=0):
 
@@ -282,8 +294,7 @@ def getUserNPass(choice,account=0):
     accounts = pd.read_csv("Credentials.csv")
     if account in accounts.values:
         index = accounts[accounts['Account Name'] == account].index[0]
-        credID= accounts.loc[index]['id']
-        return accounts.loc[credID]['username'],accounts.loc[credID]['password'],accounts.loc[credID]['Account Name']
+        return accounts.loc[index]['username'],accounts.loc[index]['password'],accounts.loc[index]['Account Name']
     
 
 
@@ -305,7 +316,7 @@ def getUserDateChoice():
                         start_date= parser.parse(startDateInput).strftime('%Y-%m-%d %H:%M:%S')
                         break
                 except ValueError:
-                        print("Invalid input, enter a valid date and time.")
+                        input("Invalid input, enter a valid date and time.\nPress enter to continue...")
             while True:
                 try:
                     endDateInput=input("Enter End Date and Time(0 to exit): ")
@@ -315,11 +326,10 @@ def getUserDateChoice():
                         end_date= parser.parse(endDateInput).strftime('%Y-%m-%d %H:%M:%S')
                         break
                 except ValueError:
-                    print("Invalid input, please enter a valid date and time.")
+                    input("Invalid input, please enter a valid date and time.\nPress enter to continue...")
             if(start_date < end_date):
-                return start_date , end_date
-                break 
-            print("Invalid input, end date must be after start date, enter a valid date and time")
+                return parser.parse(start_date) , parser.parse(end_date)
+            input("Invalid input, end date must be after start date, enter a valid date and time.\nPress enter to continue...")
 
     # This week
     elif userInput == 2:
@@ -391,14 +401,14 @@ def download_excel_file(login,password,start_date, end_date,card=''):
             raise Exception("Login failed, Problem with credentials")
     except requests.exceptions.ConnectionError:
         # code to handle the error when the connection is lost
-        print("Error: Connection lost. Please check your internet connection and try again.")
+        input("Error: Connection lost. Please check your internet connection and try again.")
         return
     except requests.exceptions.Timeout as e:
-        print("The request timed out:", e)
+        input("The request timed out:", e)
         return
     except Exception as e:
         # handle the error if there is a problem with the credentials
-        print("Error:", e)
+        input("Error:", e)
         return
 
     # Step 2: Download the excel file
@@ -421,66 +431,59 @@ def download_excel_file(login,password,start_date, end_date,card=''):
     response=session.get(file_url, params=unquote(urlencode(query_params)))
     return response
 
-
 #Main Code 
 os.system('cls')
 while True:
     os.system('cls')
-    print("1. Card Statments\n2. Account Statments\n3. STC Statments\n\n0. Exit the program\n")
-    choice = int(input("Enter your choice [1-3]: "))
+    print("1. Card Statments\n2. Card Info\n3. Account Statments\n4. STC Statments\n\n0. Exit the program\n")
+    choice = input("Enter your choice [1-4]: ")
 
-    if choice == 1:
+    if choice == '1':
         os.system('cls')
-        print("1. Search a Card number or Vehicle Number.\n2. Enter a Card number to identify it's account. \n\n0. Exit\n")
-        choiceC= int(input("Enter your choice [1-2]: "))
-        if choiceC== 1:
-            while True:
-                os.system('cls')
-                inputCard = input("Enter Card Number or Vehicle Number(0 to exit): ")
-
-                try:
-                    if int(inputCard) == 0:
+        while True:
+            os.system('cls')
+            inputCard = input("Enter Card Number or Vehicle Number(q to quit): ")
+            try:
+                if inputCard == 'q':
+                    break
+                else:
+                    print('Fetching Data...')
+                    accountsInfo=search(inputCard)
+                    if accountsInfo=='q':
                         break
-                    else:
-                        print('Fetching Data...')
-                        accountsInfo=search(int(inputCard))
-                        login=accountsInfo[0]
-                        password=accountsInfo[1]
-                        card=int(accountsInfo[2])
-                        if login:
-                            start_date, end_date= getUserDateChoice()
-                            if start_date==0:
-                                break
-                            else:
-                                response = download_excel_file(login,password,start_date, end_date,card)
-                                with open(f'Card {card} Statements Report {start_date.strftime("%b %d")} - {end_date.strftime("%b %d")}.xls', 'wb') as f:
-                                    f.write(response.content)
-                                input("Data download is done\nPress Enter to continue...")   
-                                break
-
-                except:
-                    print("Invalid card number. Try again.")  
-
-        elif choiceC==2:
-
-            while True:
-                os.system('cls')
-                card = int(input("Enter your card number (0 to exit): "))
-                try:
-                    if card == 0:
-                        break;
-                        
-                    else:
-                        accountsInfo=search(card)
-                        accountName=accountsInfo[3]
-                        if accountName:
-                            print(f'This card number belongs to this account:\n {accountName}')
-                            input("Press Enter to continue...")
+                    login=accountsInfo[0]
+                    password=accountsInfo[1]
+                    card=int(accountsInfo[2])
+                    vehicleNumber=accountsInfo[3]
+                    if login:
+                        start_date, end_date= getUserDateChoice()
+                        if start_date==0:
                             break
-                except:
-                    print("Invalid card number. Try again.")
+                        else:
+                            response = download_excel_file(login,password,start_date, end_date,card)
+                            with open(f'{vehicleNumber} {start_date.strftime("%b %d")} - {end_date.strftime("%b %d")}.xls', 'wb') as f:
+                                f.write(response.content)
+                            input("Data download is done\nPress Enter to continue...")   
+                            break
+            except:
+                input('Invalid card or vehicle number. Try again.\nPress Enter to continue...')
 
-    elif choice == 2:
+
+
+    elif choice == '2':
+        while True:
+            os.system('cls')
+            card =input("Enter Card Number or Vehicle Number(q to quit): ")
+            try:
+                if card == 'q':
+                    break;
+                else:
+                    print('Fetching Data...')
+                    search(card,'displayInfo')
+            except:
+                input('Invalid card or vehicle number. Try again.\nPress Enter to continue...')
+
+    elif choice == '3':
         while True:
             os.system('cls')
             print("Choose an Account: \n1. RANA MOTORS\n2. B.B.C INDUSTRIALS CO(GH) LTD\n3. LAJJIMARK CO. LTD.\n4. WEST AFRICA TIRE SERV. LTD\n5. HIGHLAND SPRINGS (GH) LTD\n6. KHOMARA PRINTING PRESS LTD\n7. ODAYMAT INVESTMENTS LTD\n8. RANA ATLAS\n9. ELDACO\n\n10. All Accounts Data for last month\n\n0. Exit")
@@ -508,13 +511,13 @@ while True:
                             input("Data download is done\nPress Enter to continue...")
                             break
             except:
-                print("An Error Occurred, Try Again.")    
+                input("An Error Occurred, Try Again.\nPress Enter to continue...")    
 
-    elif choice == 3:
+    elif choice == '4':
         os.system('cls')
         downloadStcData()
 
-    elif choice == 0:
+    elif choice == '0':
         break    
     else:
-        print("Invalid option. Try again.")
+        input("Invalid option. Try again.\nPress Enter to continue...")
