@@ -10,7 +10,7 @@ from urllib.parse import urlencode,unquote
 from tabulate import tabulate
 
 
-def search(query,search='',login= '',password= '',accounts = pd.read_csv("Credentials.csv"),df = pd.DataFrame()):
+def search(query,search='',login= '',password= '',df = pd.DataFrame()):
     # the search parameter purpose is to determine the way the function is going to be used when called.
     # search='' will return values.
     # search='displayInfo' will display search results only.
@@ -137,7 +137,6 @@ def search(query,search='',login= '',password= '',accounts = pd.read_csv("Creden
 
 def downloadAllData():
     os.system('cls')
-    accounts = pd.read_csv("Credentials.csv")
     print('Downloading All Accounts Data:\n') 
     for index, row in accounts.iterrows():
         login=row['username']
@@ -188,13 +187,13 @@ def downloadAllData():
         }
 
         response=session.get(file_url, params=unquote(urlencode(query_params)))
-        with open('downloadingData.csv', 'a') as f:
+        with open(f'{downloadPath}\downloadingData.csv', 'a') as f:
             f.write(response.text)
-    df = pd.read_csv('downloadingData.csv')
+    df = pd.read_csv(f'{downloadPath}\downloadingData.csv')
     value_index = df[df['Transaction date'] == 'Transaction date'].index
     df = df.drop(value_index)
-    df.to_excel(f'All Card Purchases Report {start_date.strftime("%b %d")} - {end_date.strftime("%b %d")}.xls',engine='openpyxl', index=False)
-    os.remove('downloadingData.csv')
+    df.to_excel(f'{downloadPath}\All Card Purchases Report {start_date.strftime("%b %d")} - {end_date.strftime("%b %d")}.xls',engine='openpyxl', index=False)
+    os.remove(f'{downloadPath}\downloadingData.csv')
     input('Downloading Data is Done.\nPress Enter to continue...')
     
 
@@ -246,7 +245,7 @@ def downloadStcData():
     }
     print('STC Cards Purchases Data Download Started.')
     response=session.get(file_url, params=unquote(urlencode(query_params)))
-    with open(f'STC Report {start_date.strftime("%b %d")} - {end_date.strftime("%b %d")}.xls', 'wb') as f:
+    with open(f'{downloadPath}\STC Report {start_date.strftime("%b %d")} - {end_date.strftime("%b %d")}.xls', 'wb') as f:
         f.write(response.content)   
     print('STC Cards Purchases Data Download is Done.')
     input("Press Enter to continue...")
@@ -291,7 +290,6 @@ def getUserNPass(choice,account=0):
     if account==0:
         return 0,0,0;
 
-    accounts = pd.read_csv("Credentials.csv")
     if account in accounts.values:
         index = accounts[accounts['Account Name'] == account].index[0]
         return accounts.loc[index]['username'],accounts.loc[index]['password'],accounts.loc[index]['Account Name']
@@ -432,6 +430,10 @@ def download_excel_file(login,password,start_date, end_date,card=''):
     return response
 
 #Main Code 
+
+downloadPath="D:\python"
+realPath=os.path.realpath(os.path.dirname(__file__))
+accounts = pd.read_csv(f'{realPath}\Credentials.csv')
 os.system('cls')
 while True:
     os.system('cls')
@@ -461,7 +463,7 @@ while True:
                             break
                         else:
                             response = download_excel_file(login,password,start_date, end_date,card)
-                            with open(f'{vehicleNumber} {start_date.strftime("%b %d")} - {end_date.strftime("%b %d")}.xls', 'wb') as f:
+                            with open(f'{downloadPath}\{vehicleNumber} {start_date.strftime("%b %d")} - {end_date.strftime("%b %d")}.xls', 'wb') as f:
                                 f.write(response.content)
                             input("Data download is done\nPress Enter to continue...")   
                             break
@@ -506,7 +508,7 @@ while True:
                             break
                         else:
                             response = download_excel_file(login,password,start_date, end_date)
-                            with open(f'{accountName} Statements Report {start_date.strftime("%b %d")} - {end_date.strftime("%b %d")}.xls', 'wb') as f:
+                            with open(f'{downloadPath}\{accountName} Statements Report {start_date.strftime("%b %d")} - {end_date.strftime("%b %d")}.xls', 'wb') as f:
                                 f.write(response.content)
                             input("Data download is done\nPress Enter to continue...")
                             break
