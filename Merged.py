@@ -209,6 +209,7 @@ def dashboard():
     table.add_row(*percentagesL)
     return table
 # Download a file from the server
+
 def downloadFile(login,password,start_date, end_date,card=''):
     # Log in to the website
     session = logIn(login,password)
@@ -223,12 +224,15 @@ def downloadFile(login,password,start_date, end_date,card=''):
 # Download all accounts statements to 1 file
 def downloadAllData():
     os.system('cls')
-    print('Downloading All Accounts Data:\n') 
+    start_date , end_date = getUserDateChoice("LastMonth")
     file_url = loginInfo['file']['fileURL']
     params = loginInfo['file']['params']
-    params.update({'startDate': start_date, 'endDate': end_date})
-    start_date= parser.parse((datetime.now() + relativedelta(day=1,months=-1,hour=00,minute=00,second=00)).strftime('%Y-%m-%d %H:%M:%S'))
-    end_date= parser.parse((datetime.now() + relativedelta(day=1,days=-1,hour=23,minute=59,second=59)).strftime('%Y-%m-%d %H:%M:%S'))
+    params.update({'startDate': start_date, 'endDate': end_date,"format": "CSV"})
+    downloadPath=loginInfo["downloadsPath"]["allAccounts"]
+    os.makedirs(downloadPath) if not os.path.exists(downloadPath) else None
+    fileName=f'{downloadPath}\All Card Purchases Report {start_date.strftime("%b %d")} - {end_date.strftime("%b %d")}.xls' 
+    fileName=f'{downloadPath}\All Card Purchases Report {start_date.strftime("%b %d")} - {end_date.strftime("%b %d)")} {datetime.now().strftime("(%I.%M.%S.%p)")}.xls' if os.path.exists(fileName) else fileName
+    print('Downloading All Accounts Data:\n') 
     for i in range(9):
         login=usernamesL[i]
         password= passwordsL[i]
@@ -243,17 +247,20 @@ def downloadAllData():
     df = pd.read_csv(f'{downloadPath}\downloadingData.csv')
     value_index = df[df['Transaction date'] == 'Transaction date'].index
     df = df.drop(value_index)
-    df.to_excel(f'{downloadPath}\All Card Purchases Report {start_date.strftime("%b %d")} - {end_date.strftime("%b %d")}.xls',engine='openpyxl', index=False)
+    df.to_excel(fileName,engine='openpyxl', index=False)
     os.remove(f'{downloadPath}\downloadingData.csv')
     input('Downloading Data is Done.\nPress Enter to continue...')
 
 # Download STC Data
 def downloadStcData():
-    start_date= parser.parse((datetime.now() + relativedelta(day=1,months=-1,hour=00,minute=00,second=00)).strftime('%Y-%m-%d %H:%M:%S'))
-    end_date= parser.parse((datetime.now() + relativedelta(day=1,days=-1,hour=23,minute=59,second=59)).strftime('%Y-%m-%d %H:%M:%S'))
+    start_date , end_date = getUserDateChoice("LastMonth")
     file_url = loginInfo['STC']['fileURL']
     params = loginInfo['STC']['params']
     params.update({'startDate': start_date, 'endDate': end_date})
+    downloadPath=loginInfo["downloadsPath"]["STC"]
+    os.makedirs(downloadPath) if not os.path.exists(downloadPath) else None
+    fileName=f'{downloadPath}\STC Report {start_date.strftime("%b %d")} - {end_date.strftime("%b %d")}.xls' 
+    fileName=f'{downloadPath}\STC Report {start_date.strftime("%b %d")} - {end_date.strftime("%b %d)")} {datetime.now().strftime("(%I.%M.%S.%p)")}.xls' if os.path.exists(fileName) else fileName
     accountsInfo= getUserNPass('WEST AFRICA TIRE SERV. LTD')
     login = accountsInfo[0]
     password = accountsInfo[1]
@@ -262,7 +269,7 @@ def downloadStcData():
     # Download the excel file
     print('STC Cards Purchases Data Download Started.')
     response=session.get(file_url, params=unquote(urlencode(params)))
-    with open(f'{downloadPath}\STC Report {start_date.strftime("%b %d")} - {end_date.strftime("%b %d")}.xls', 'wb') as f:
+    with open(fileName, 'wb') as f:
         f.write(response.content)   
     print('STC Cards Purchases Data Download is Done.')
     input("Press Enter to continue...")
@@ -296,18 +303,15 @@ def getUserNPass(choice):
 
     elif choice == 9 or choice == 'ELDACO' :
         account= 'ELDACO'
-
-    elif choice == 10 :
-        downloadAllData()
-        return
     index = namesL.index(account)
     return usernamesL[index],passwordsL[index],aNamesL[index]
 
 # Return the user date choice after formatting it
-def getUserDateChoice():
+def getUserDateChoice(userInput=''):
     os.system('cls')
-    print("Choose an option:\n1. Custom date and time\n2. This week\n3. Last week\n4. Date of a week\n5. This month\n6. Last month\n7. Go back X days from today\n8. Go back X weeks from this week\n9. Choose a specific month (current year)\n\n0. Exit\n")
-    userInput=int(input("Enter your choice: "))
+    if userInput =='' :
+        print("Choose an option:\n1. Custom date and time\n2. This week\n3. Last week\n4. Date of a week\n5. This month\n6. Last month\n7. Go back X days from today\n8. Go back X weeks from this week\n9. Choose a specific month (current year)\n\n0. Exit\n")
+        userInput=int(input("Enter your choice: "))
     # Custom date and time
     if userInput == 1:       
         os.system('cls')    
@@ -348,7 +352,7 @@ def getUserDateChoice():
     elif userInput == 3:
         os.system('cls')
         start_date= (datetime.now() + relativedelta(weekday=MO(-2),hour=00,minute=00,second=00)).strftime('%Y-%m-%d %H:%M:%S')
-        end_date= (datetime.now() + relativedelta(weekday=SU(-1))).strftime('%Y-%m-%d %H:%M:%S')
+        end_date= (datetime.now() + relativedelta(weekday=SU(-1),hour=23,minute=59,second=59)).strftime('%Y-%m-%d %H:%M:%S')
         return parser.parse(start_date) , parser.parse(end_date)
     
     # Choose a date to return the date of the week 
@@ -370,10 +374,10 @@ def getUserDateChoice():
         return parser.parse(start_date) , parser.parse(end_date)
 
     # Last month
-    elif userInput == 6:
+    elif userInput == 6 or userInput == "LastMonth" :
         os.system('cls')
         start_date= (datetime.now() + relativedelta(day=1, months=-1,hour=00,minute=00,second=00)).strftime('%Y-%m-%d %H:%M:%S')
-        end_date= (datetime.now() + relativedelta(day=1,days=-1)).strftime('%Y-%m-%d %H:%M:%S')
+        end_date= (datetime.now() + relativedelta(day=1,days=-1,hour=23,minute=59,second=59)).strftime('%Y-%m-%d %H:%M:%S')
         return parser.parse(start_date) , parser.parse(end_date)
 
     # Go back X days from today
@@ -439,9 +443,13 @@ def main():
                         card=int(accountsInfo[2])
                         vehicleNumber=accountsInfo[3]
                         start_date, end_date= getUserDateChoice()
+                        downloadPath=loginInfo["downloadsPath"]["card"]
+                        os.makedirs(downloadPath) if not os.path.exists(downloadPath) else None
+                        fileName=f'{downloadPath}\{vehicleNumber} ({start_date.strftime("%b %d")} - {end_date.strftime("%b %d")}).xls'
+                        fileName=f'{downloadPath}\{vehicleNumber} ({start_date.strftime("%b %d")} - {end_date.strftime("%b %d) (%I.%M.%S.%p)")}.xls' if os.path.exists(fileName) else fileName
                         if start_date!=0:
                             response = downloadFile(login,password,start_date, end_date,card)
-                            with open(f'{downloadPath}\{vehicleNumber} ({start_date.strftime("%b %d")} - {end_date.strftime("%b %d")}).xls', 'wb') as f:
+                            with open(fileName, 'wb') as f:
                                 f.write(response.content)
                             input("Data download is done\nPress Enter to continue...")   
                             break
@@ -469,20 +477,27 @@ def main():
                 choice = int(input("Enter your choice [1-10]: "))
                 if choice==0:
                     break
+                if choice==10:
+                    downloadAllData()
+                    break
                 try:
                     accountsInfo= getUserNPass(choice)
                     login = accountsInfo[0]
                     password = accountsInfo[1]
                     accountName=accountsInfo[2]
                     start_date, end_date= getUserDateChoice()
+                    downloadPath=loginInfo["downloadsPath"]["account"]
+                    os.makedirs(downloadPath) if not os.path.exists(downloadPath) else None
+                    fileName=f'{downloadPath}\{accountName} Statements Report {start_date.strftime("%b %d")} - {end_date.strftime("%b %d")}.xls'
+                    fileName=f'{downloadPath}\{accountName} Statements Report {start_date.strftime("%b %d")} - {end_date.strftime("%b %d (%I.%M.%S.%p)")}.xls' if os.path.exists(fileName) else fileName
                     if start_date!=0:
                         response = downloadFile(login,password,start_date, end_date)
-                        with open(f'{downloadPath}\{accountName} Statements Report {start_date.strftime("%b %d")} - {end_date.strftime("%b %d")}.xls', 'wb') as f:
+                        with open(fileName, 'wb') as f:
                             f.write(response.content)
                         input("Data download is done\nPress Enter to continue...")
                         break
-                except:
-                    input("An Error Occurred, Try Again.\nPress Enter to continue...")    
+                except Exception as e:
+                    input(f"{e}\nAn Error Occurred, Try Again.\nPress Enter to continue...")    
 
         elif choice == '4':
             os.system('cls')
@@ -499,7 +514,7 @@ def main():
 realPath=os.path.realpath(os.path.dirname(__file__))
 with open(f'{realPath}\Login and Download Info.json', 'r') as f:
     loginInfo = json.load(f)
-downloadPath=loginInfo['downloadPath']
+downloadPath=loginInfo["downloadsPath"]["defaultDownloadPath"]
 usernamesL,passwordsL,namesL,aNamesL=constructLogins()
 os.system('cls')
 
