@@ -12,7 +12,7 @@ from   dateutil                 import parser
 from   urllib.parse             import urlencode,unquote
 from   dateutil.relativedelta   import relativedelta
 from   dateutil.rrule           import MO,SU
-
+import traceback
 from rich.traceback import install
 install() # this prints the errors in the terminal in a readable way
 
@@ -358,10 +358,10 @@ def getUserDateChoice(userInput=''):
     # Choose a date to return the date of the week 
     elif userInput== 4:
             os.system('cls')
-            date=parser.parse(input('enter a date (0 to exit): '))
-            if date!=0:
-                start_date= (date + relativedelta(weekday=MO(-1),hour=00,minute=00,second=00)).strftime('%Y-%m-%d %H:%M:%S')
-                end_date= (date + relativedelta(weekday=SU,hour=23,minute=59,second=59)).strftime('%Y-%m-%d %H:%M:%S')
+            date=input('enter a date (0 to exit): ')
+            if date!='0':
+                start_date= (parser.parse(date) + relativedelta(weekday=MO(-1),hour=00,minute=00,second=00)).strftime('%Y-%m-%d %H:%M:%S')
+                end_date= (parser.parse(date) + relativedelta(weekday=SU,hour=23,minute=59,second=59)).strftime('%Y-%m-%d %H:%M:%S')
                 return parser.parse(start_date) , parser.parse(end_date)
             else:
                 return 0,0
@@ -444,10 +444,10 @@ def main():
                         vehicleNumber=accountsInfo[3]
                         start_date, end_date= getUserDateChoice()
                         downloadPath=loginInfo["downloadsPath"]["card"]
-                        os.makedirs(downloadPath) if not os.path.exists(downloadPath) else None
-                        fileName=f'{downloadPath}\{vehicleNumber} ({start_date.strftime("%b %d")} - {end_date.strftime("%b %d")}).xls'
-                        fileName=f'{downloadPath}\{vehicleNumber} ({start_date.strftime("%b %d")} - {end_date.strftime("%b %d) (%I.%M.%S.%p)")}.xls' if os.path.exists(fileName) else fileName
                         if start_date!=0:
+                            os.makedirs(downloadPath) if not os.path.exists(downloadPath) else None
+                            fileName=f'{downloadPath}\{vehicleNumber} ({start_date.strftime("%b %d")} - {end_date.strftime("%b %d")}).xls'
+                            fileName=f'{downloadPath}\{vehicleNumber} ({start_date.strftime("%b %d")} - {end_date.strftime("%b %d) (%I.%M.%S.%p)")}.xls' if os.path.exists(fileName) else fileName
                             response = downloadFile(login,password,start_date, end_date,card)
                             with open(fileName, 'wb') as f:
                                 f.write(response.content)
@@ -486,11 +486,11 @@ def main():
                     password = accountsInfo[1]
                     accountName=accountsInfo[2]
                     start_date, end_date= getUserDateChoice()
-                    downloadPath=loginInfo["downloadsPath"]["account"]
-                    os.makedirs(downloadPath) if not os.path.exists(downloadPath) else None
-                    fileName=f'{downloadPath}\{accountName} Statements Report {start_date.strftime("%b %d")} - {end_date.strftime("%b %d")}.xls'
-                    fileName=f'{downloadPath}\{accountName} Statements Report {start_date.strftime("%b %d")} - {end_date.strftime("%b %d (%I.%M.%S.%p)")}.xls' if os.path.exists(fileName) else fileName
                     if start_date!=0:
+                        downloadPath=loginInfo["downloadsPath"]["account"]
+                        os.makedirs(downloadPath) if not os.path.exists(downloadPath) else None
+                        fileName=f'{downloadPath}\{accountName} Statements Report {start_date.strftime("%b %d")} - {end_date.strftime("%b %d")}.xls'
+                        fileName=f'{downloadPath}\{accountName} Statements Report {start_date.strftime("%b %d")} - {end_date.strftime("%b %d (%I.%M.%S.%p)")}.xls' if os.path.exists(fileName) else fileName
                         response = downloadFile(login,password,start_date, end_date)
                         with open(fileName, 'wb') as f:
                             f.write(response.content)
