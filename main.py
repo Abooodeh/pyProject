@@ -23,14 +23,15 @@ def constructLogins():
     namesL=[]
     aNamesL=[]
     for credential in loginInfo["Credentials"]:
-        username=credential["username"]
-        usernamesL.append(username)
-        password= credential['password']
-        passwordsL.append(password)
-        accountName = credential['Account Name']
-        namesL.append(accountName)
-        accountNameA = credential['abbrevietedNames']
-        aNamesL.append(accountNameA)
+        if credential["flag"]!="false":
+            username=credential["username"]
+            usernamesL.append(username)
+            password= credential['password']
+            passwordsL.append(password)
+            accountName = credential['Account Name']
+            namesL.append(accountName)
+            accountNameA = credential['abbrevietedNames']
+            aNamesL.append(accountNameA)
     return usernamesL,passwordsL,namesL,aNamesL
 
 # Return a loggedIn session
@@ -85,9 +86,10 @@ def search(query):
 
 # Returns card and account information based on user choice
 def getUserCardChoice(df):   
+    # if there is only 1 result, it will be returned
     if df.shape[0] == 1:                                        
             return df.loc[0]['Username'],df.loc[0]['Password'],df.loc[0]['Card number'],df.loc[0]['Vehicle Number'],df.loc[0]['Account Name']
-    # if there is more than 15 results, display them and user will be prompted to choose, with pages navigation
+    # if there is more than 10 results, display them and user will be prompted to choose, with pages navigation
     elif df.shape[0] > 10:
         itemsPerPage=10
         totalPages = (df.shape[0] // itemsPerPage) + 1
@@ -99,7 +101,7 @@ def getUserCardChoice(df):
             os.system('cls')
             print('Multiple Matches Founds')
             print(f"Page {currentPage} of {totalPages}")
-            print(tabulate(page[['Card number', 'Vehicle Number' , 'Card Holder', 'Status' ,'Account','Limit']], headers = 'keys', tablefmt = 'rounded_grid'))
+            print(tabulate(page[['Card number', 'Vehicle Number' , 'Card Holder', 'Status' ,'Account','Limit','Sticker Number']], headers = 'keys', tablefmt = 'rounded_grid'))
             try:
                 rowIndex = input("Enter 'n' for next page, 'p' for previous page, 'q' to quit or Enter the index of a row to choose the card number: ")
                 if rowIndex == 'n':
@@ -118,13 +120,13 @@ def getUserCardChoice(df):
                         return df.loc[rowIndex]['Username'],df.loc[rowIndex]['Password'],df.loc[rowIndex]['Card number'],df.loc[rowIndex]['Vehicle Number']
             except ValueError:
                 input("Invalid input. Please enter 'n', 'p', 'q', or a valid index number.\nPress Enter to continue...")
-    # if there is less than 15 results, display them and user will be prompted to choose
+    # if there is less than 10 results, display them and user will be prompted to choose
     else:
         while True:
                 os.system('cls')
                 print('Multiple Matches Founds:')
                 try:
-                    print(tabulate(df[['Card number', 'Vehicle Number' , 'Card Holder', 'Status' ,'Account','Limit']], headers = 'keys', tablefmt = 'rounded_grid'))
+                    print(tabulate(df[['Card number', 'Vehicle Number' , 'Card Holder', 'Status' ,'Account','Limit','Sticker Number']], headers = 'keys', tablefmt = 'rounded_grid'))
                     rowIndex=input('Enter the index of a row to choose the card number(q to quit): ')
                     if rowIndex == 'q':
                             return 'q'
@@ -139,6 +141,7 @@ def getUserCardChoice(df):
 
 # Display the search results
 def displaySearchInfo(df):   
+    # if there is more than 10 results, they will be displayed with page navigation
     if df.shape[0] > 10:
         itemsPerPage=10
         totalPages = (df.shape[0] // itemsPerPage) + 1
@@ -150,7 +153,7 @@ def displaySearchInfo(df):
             os.system('cls')
             print('Multiple Matches Founds')
             print(f"Page {currentPage} of {totalPages}")
-            print(tabulate(page[['Card number', 'Vehicle Number' , 'Status' ,'Account','Limit','Sticker Number']], headers = 'keys', tablefmt = 'rounded_grid',showindex='never'))
+            print(tabulate(page[['Card number', 'Vehicle Number' , 'Card Holder' , 'Status' ,'Account','Limit','Sticker Number']], headers = 'keys', tablefmt = 'rounded_grid',showindex='never'))
             rowIndex = input("Enter 'n' for next page, 'p' for previous page, 'q' to quit: ")  
             if rowIndex !='n' and rowIndex != 'p' and rowIndex != 'q':
                 input("Invalid input. Please enter 'n', 'p' or 'q'.\nPress Enter to continue...")
@@ -164,11 +167,11 @@ def displaySearchInfo(df):
                             currentPage = totalPages
             elif rowIndex == 'q':
                     return
-    # if there is less than 15 results, display them and user will be prompted to choose
+    # if there is less than 10 results, they will be displayed in 1 page
     else:
         os.system('cls')
         print('Multiple Matches Founds:')
-        print(tabulate(df[['Card number', 'Vehicle Number' , 'Status' ,'Account','Limit','Sticker Number']], headers = 'keys', tablefmt = 'rounded_grid',showindex='never'))
+        print(tabulate(df[['Card number', 'Vehicle Number','Card Holder' , 'Status' ,'Account','Limit','Sticker Number']], headers = 'keys', tablefmt = 'rounded_grid',showindex='never'))
         input('Press Enter to continue...')
 
 # Return account usage percentage and account name
@@ -203,13 +206,13 @@ def dashboard():
         percentagesL.append(data[0])
         names.append(data[1])
     table = Table(show_header=False)
-    for i in range(9):
+    for i in range(len(usernamesL)):
         table.add_column("",justify="center")
     table.add_row(*names)
     table.add_row(*percentagesL)
     return table
-# Download a file from the server
 
+# Download a file from the server
 def downloadFile(login,password,start_date, end_date,card=''):
     # Log in to the website
     session = logIn(login,password)
@@ -233,7 +236,7 @@ def downloadAllData():
     fileName=f'{downloadPath}\All Card Purchases Report {start_date.strftime("%b %d")} - {end_date.strftime("%b %d")}.xls' 
     fileName=f'{downloadPath}\All Card Purchases Report {start_date.strftime("%b %d")} - {end_date.strftime("%b %d)")} {datetime.now().strftime("(%I.%M.%S.%p)")}.xls' if os.path.exists(fileName) else fileName
     print('Downloading All Accounts Data:\n') 
-    for i in range(9):
+    for i in range(len(usernamesL)):
         login=usernamesL[i]
         password= passwordsL[i]
         accountName=namesL[i]
@@ -275,34 +278,7 @@ def downloadStcData():
     input("Press Enter to continue...")
 
 # Return Username and Password
-def getUserNPass(choice):
-
-    if choice == 1 or choice == 'RANA MOTORS' :
-        account= 'RANA MOTORS'
-
-    elif choice == 2 or choice == 'B.B.C INDUSTRIALS CO(GH) LTD' :
-        account= 'B.B.C INDUSTRIALS CO(GH) LTD'
-
-    elif choice == 3 or choice == 'LAJJIMARK CO. LTD.' :
-        account= 'LAJJIMARK CO. LTD.'
-
-    elif choice == 4 or choice == 'WEST AFRICA TIRE SERV. LTD':
-        account= 'WEST AFRICA TIRE SERV. LTD'
-
-    elif choice == 5 or choice == 'HIGHLAND SPRINGS (GH) LTD' :
-        account= 'HIGHLAND SPRINGS (GH) LTD'
-
-    elif choice == 6 or choice == 'KHOMARA PRINTING PRESS LTD' :
-        account= 'KHOMARA PRINTING PRESS LTD'
-
-    elif choice == 7 or choice == 'ODAYMAT INVESTMENTS LTD' :
-        account= 'ODAYMAT INVESTMENTS LTD'
-
-    elif choice == 8 or choice == 'RANA ATLAS' :
-        account= 'RANA ATLAS'
-
-    elif choice == 9 or choice == 'ELDACO' :
-        account= 'ELDACO'
+def getUserNPass(account):
     index = namesL.index(account)
     return usernamesL[index],passwordsL[index],aNamesL[index]
 
@@ -473,18 +449,20 @@ def main():
         elif choice == '3':
             while True:
                 os.system('cls')
-                print("Choose an Account: \n1. RANA MOTORS\n2. B.B.C INDUSTRIALS CO (GH) LTD\n3. LAJJIMARK CO. LTD.\n4. WEST AFRICA TIRE SERV. LTD\n5. HIGHLAND SPRINGS (GH) LTD\n6. KHOMARA PRINTING PRESS LTD\n7. ODAYMAT INVESTMENTS LTD\n8. RANA ATLAS\n9. ELDACO\n\n10. All Accounts Data for last month\n\n0. Exit")
-                choice = int(input("Enter your choice [1-10]: "))
+                print("Choose an Account:")
+                for i in range(len(usernamesL)):
+                    print(f'{i+1}. {namesL[i]}')
+                print("\n10. All Accounts Data for last month\n\n0. Exit")
+                choice = int(input(f'Enter your choice [1-{len(usernamesL)}]: ')) 
                 if choice==0:
                     break
                 if choice==10:
                     downloadAllData()
                     break
                 try:
-                    accountsInfo= getUserNPass(choice)
-                    login = accountsInfo[0]
-                    password = accountsInfo[1]
-                    accountName=accountsInfo[2]
+                    login = usernamesL[choice-1]
+                    password = passwordsL[choice-1]
+                    accountName=aNamesL[choice-1]
                     start_date, end_date= getUserDateChoice()
                     if start_date!=0:
                         downloadPath=loginInfo["downloadsPath"]["account"]
@@ -501,7 +479,10 @@ def main():
 
         elif choice == '4':
             os.system('cls')
-            downloadStcData()
+            try:
+                downloadStcData()
+            except:
+                input("Option Not Available.\nPress enter to continue...")
         elif choice == 'r':
             os.system('cls')
             table=dashboard()
